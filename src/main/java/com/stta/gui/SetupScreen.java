@@ -128,6 +128,7 @@ public class SetupScreen extends Screen {
 	 */
 	private void start() {
 		STTAConfig config = STTAConfig.instance();
+		boolean firstSetup = !config.setupDone;
 		config.quality = quality;
 		config.microphone = microphone;
 		config.useGpu = useGpu;
@@ -150,9 +151,10 @@ public class SetupScreen extends Screen {
 
 					status = Component.translatable("stta.setup.checking").getString();
 					EngineManager engines = EngineManager.get();
-					long ms = SpeedCheck.time(engines.mainUrl());
+					long ms = SpeedCheck.time(engines.mainUrl(), !engines.mainOnGpu());
 					SpeedCheck.log(config.quality + (engines.mainOnGpu() ? " on GPU" : " on CPU"), ms);
-					if (SpeedCheck.fastEnough(ms) || round == 2) {
+					// a player who deliberately picked a setup later (Apply) keeps it; only first setup auto-picks
+					if (SpeedCheck.fastEnough(ms) || round == 2 || !firstSetup) {
 						String device = engines.mainDevice();
 						String speed = ms < 0 ? "> 6 s" : String.format(Locale.ROOT, "%.1f s", ms / 1000.0);
 						status = note + Component.translatable("stta.setup.ready", device == null ? "?" : device,
@@ -170,8 +172,10 @@ public class SetupScreen extends Screen {
 					long gpuMs = wasGpu ? ms : Long.MIN_VALUE;
 					long cpuBaseMs;
 					if (wasGpu && engines.previewEngineUrl() != null) {
-						cpuBaseMs = SpeedCheck.time(engines.previewEngineUrl());
-						SpeedCheck.log("base on CPU", cpuBaseMs);
+						long previewMs = SpeedCheck.time(engines.previewEngineUrl(), true);
+						SpeedCheck.log("base on CPU (preview engine)", previewMs);
+						// the preview engine has fewer threads than the main CPU engine would get
+						cpuBaseMs = previewMs < 0 ? -1 : Math.round(previewMs * EngineManager.previewToMainCpu());
 					} else if (wasGpu) {
 						cpuBaseMs = -1; // no CPU measurement: stay on the GPU with a smaller model
 					} else {

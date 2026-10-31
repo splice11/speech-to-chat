@@ -206,7 +206,9 @@ public class VoiceInput {
 		float[] all = recorder.copy(0, recorder.length());
 		long t0 = System.currentTimeMillis();
 		String text = all.length >= MIN_SPEECH && loud(all) ? ChatText.trimLoops(ChatText.clean(server.transcribe(all, prompt(), false)), 4) : "";
-		warnIfSlow(System.currentTimeMillis() - t0, all.length * 1000L / SR);
+		long finalMs = System.currentTimeMillis() - t0;
+		STTAClient.LOGGER.info("Recognised {} ms of speech in {} ms", all.length * 1000L / SR, finalMs);
+		warnIfSlow(finalMs, all.length * 1000L / SR);
 		if (text.isEmpty()) {
 			hud.blank();
 			return;

@@ -34,6 +34,8 @@ public class EngineProcess {
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
 
 	private volatile Process process;
+	/** Where this run's output starts in the (appended) log; device detection reads from here. */
+	private volatile long logStart;
 	private volatile OutputStream stdin;
 	private int port;
 
@@ -55,7 +57,14 @@ public class EngineProcess {
 		cmd.addAll(List.of("--host", "127.0.0.1", "--port", Integer.toString(port), "--exit-on-stdin-close"));
 		cmd.addAll(args);
 		Files.createDirectories(log.getParent());
-		ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(log.toFile());
+		// append, so a restart (e.g. Apply in setup) keeps the earlier session; start over past 5 MB
+		if (Files.exists(log) && Files.size(log) > 5_000_000) {
+			Files.move(log, log.resolveSibling(log.getFileName() + ".old"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+		}
+		Files.writeString(log, "\n===== " + java.time.LocalDateTime.now() + " starting " + name + " engine =====\n",
+			java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+		logStart = Files.size(log);
+		ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.appendTo(log.toFile()));
 		// Gamers often have overlay/capture Vulkan layers enabled globally (MangoHud, OBS vkcapture,
 		// vkBasalt, Steam overlay). Inside a windowless compute process they are useless and can
 		// crash it: MangoHud segfaults the engine at startup. Turn implicit layers off for the engine.
@@ -151,7 +160,9 @@ public class EngineProcess {
 
 	private String readLog() {
 		try {
-			return Files.readString(log);
+			byte[] all = Files.readAllBytes(log);
+			int from = (int) Math.min(logStart, all.length);
+			return new String(all, from, all.length - from, java.nio.charset.StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			return "";
 		}

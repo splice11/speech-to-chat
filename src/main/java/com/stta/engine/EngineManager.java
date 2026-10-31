@@ -139,6 +139,11 @@ public final class EngineManager {
 		return Math.max(1, Math.min(4, cores() / 2));
 	}
 
+	/** The preview engine runs fewer threads; scales a timing on it to what the main CPU engine would take. */
+	public static double previewToMainCpu() {
+		return (double) previewThreads() / cpuThreads();
+	}
+
 	private static int previewThreads() {
 		return Math.max(1, Math.min(4, cores() / 4));
 	}

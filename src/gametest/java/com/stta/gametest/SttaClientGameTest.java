@@ -56,6 +56,10 @@ public class SttaClientGameTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> mc.gui.setScreen(new SetupScreen(mc.gui.screen())));
 		}
 		ctx.waitTicks(5);
+		if (System.getenv("STTA_CPU") != null) {
+			ctx.clickScreenButton("stta.setup.use_gpu"); // ON -> OFF
+			ctx.waitTicks(2);
+		}
 		ctx.takeScreenshot("setup_1_choose");
 		long t0 = System.currentTimeMillis();
 		ctx.clickScreenButton("stta.setup.start");

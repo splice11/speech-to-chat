@@ -38,11 +38,14 @@ public class WhisperServer {
 		// Partials go to the small CPU preview engine (when the main one is on the GPU) so they
 		// don't compete with the game for the GPU. Getting the URL may wait for a model load.
 		String url = partial ? EngineManager.get().previewUrl() : EngineManager.get().mainUrl();
-		return transcribeAt(url, audio, prompt, partial, Duration.ofSeconds(partial ? 30 : 150));
+		// clip-sized final pass only on our own CPU engine (not on the GPU, not on an external server)
+		String external = STTAConfig.instance().externalServerUrl;
+		boolean cpu = (external == null || external.isBlank()) && !EngineManager.get().mainOnGpu();
+		return transcribeAt(url, audio, prompt, partial, cpu, Duration.ofSeconds(partial ? 30 : 150));
 	}
 
 	/** Same request against a given engine, with a given time limit (used by the setup speed check). */
-	public String transcribeAt(String url, float[] audio, String prompt, boolean partial, Duration timeout)
+	public String transcribeAt(String url, float[] audio, String prompt, boolean partial, boolean cpu, Duration timeout)
 		throws IOException, InterruptedException {
 		STTAConfig config = STTAConfig.instance();
 		// whisper-server keeps request params globally, so always send every one
@@ -59,9 +62,13 @@ public class WhisperServer {
 		fields.put("beam_size", partial ? "1" : Integer.toString(Math.max(1, config.finalBeamSize)));
 		fields.put("best_of", partial ? "1" : "5");
 		fields.put("no_speech_thold", "0.6");
-		// Partials shrink the encoder to the clip (~5x faster); below ~384 frames turbo starts looping.
-		// The final pass keeps the full 30 s context for accuracy.
-		int ctx = partial ? Math.min(1500, Math.max(384, audio.length * 50 / Recorder.SAMPLE_RATE + 64)) : 0;
+		// The encoder normally always processes a 30 s window (1500 frames); sizing it to the clip is
+		// several times faster. Partials: >= 384 frames (below that turbo loops). Final pass on a CPU
+		// engine: >= 512 frames and clip + 128 (smaller windows got the first word wrong, and a window
+		// shorter than the clip splits it). On the GPU the final pass keeps the full window.
+		int frames = audio.length * 50 / Recorder.SAMPLE_RATE;
+		int ctx = partial ? Math.min(1500, Math.max(384, frames + 64))
+			: cpu ? Math.min(1500, Math.max(512, frames + 128)) : 0;
 		fields.put("audio_ctx", Integer.toString(ctx));
 		// Nobody says more than ~8 tokens a second; a partial past that is a loop. Caps how long a
 		// runaway decode can stall the preview (our engine build accepts it; stock servers ignore it).

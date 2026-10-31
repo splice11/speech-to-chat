@@ -19,19 +19,19 @@ public final class SpeedCheck {
 	public static final double MAX_RTF = Double.parseDouble(System.getProperty("stta.debugMaxRtf", "0.5"));
 	/** Give up early on hopeless setups instead of making the player wait a minute. */
 	private static final long LIMIT_MS = 6000;
-	/** Rough CPU cost of each model relative to base. */
-	private static final double SMALL_VS_BASE = 3.0;
-	private static final double TURBO_VS_BASE = 10.0;
+	/** CPU cost of each model relative to base, measured on a 5 s sentence (i7-10700K, 4 threads). */
+	private static final double SMALL_VS_BASE = 3.3;
+	private static final double TURBO_VS_BASE = 16.0;
 
 	private SpeedCheck() {
 	}
 
 	/** Milliseconds for a final pass of the sample on that engine, or -1 when it took longer than the limit. */
-	public static long time(String url) throws IOException, InterruptedException {
+	public static long time(String url, boolean cpu) throws IOException, InterruptedException {
 		float[] audio = sample();
 		long t0 = System.nanoTime();
 		try {
-			new WhisperServer().transcribeAt(url, audio, "", false, Duration.ofMillis(LIMIT_MS));
+			new WhisperServer().transcribeAt(url, audio, "", false, cpu, Duration.ofMillis(LIMIT_MS));
 		} catch (HttpTimeoutException e) {
 			return -1;
 		}
