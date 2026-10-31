@@ -6,7 +6,7 @@ and requires the engine to exit by itself.
 
   smoke_test.py <whisper-server> <model.bin> [--gpu] [--allow-start-failure]
 """
-import json, socket, subprocess, sys, time, urllib.request, uuid
+import json, socket, subprocess, sys, tempfile, time, urllib.request, uuid
 from pathlib import Path
 
 exe, model = sys.argv[1], sys.argv[2]
@@ -20,13 +20,16 @@ with socket.socket() as s:
 args = [exe, "--host", "127.0.0.1", "--port", str(port), "--exit-on-stdin-close", "-m", model, "-l", "en", "-t", "4"]
 if not gpu:
     args.append("-ng")
-proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+# log to a file like the mod does: an unread pipe fills up (4 KB on Windows) and blocks the engine
+log_path = Path(tempfile.gettempdir()) / f"smoke-engine-{port}.log"
+log = open(log_path, "wb")
+proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT)
 base = f"http://127.0.0.1:{port}"
 
 deadline = time.time() + 120
 while time.time() < deadline:
     if proc.poll() is not None:
-        out = proc.stdout.read().decode(errors="replace")[-1500:]
+        out = log_path.read_text(errors="replace")[-1500:]
         if allow_start_failure:
             print(f"engine could not start (exit {proc.returncode}); allowed here, the mod falls back to CPU\n{out}")
             sys.exit(0)
