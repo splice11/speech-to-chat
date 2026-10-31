@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "draft = create/update page (private), gallery = upload screenshots, version = upload the jar of a GitHub release, submit = send for review (goes public once approved)"
+        description: "draft = create/update page (private), gallery = upload screenshots, version = upload the jar of a GitHub release, env = mark versions client-only, submit = send for review (goes public once approved)"
         type: choice
-        options: [draft, gallery, version, submit]
+        options: [draft, gallery, version, env, submit]
         default: draft
       tag:
         description: "release tag, for action=version (e.g. v1.0.0+26.3)"

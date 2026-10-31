@@ -4,6 +4,7 @@
   modrinth.py draft                       create the project as a private draft, or update its page/icon
   modrinth.py gallery                     upload screenshots from modrinth/gallery that aren't there yet
   modrinth.py version <jar> <version>     upload a jar as a new version (changelog from CHANGELOG.md)
+  modrinth.py env                         mark every version as client-only (Modrinth's environment field)
   modrinth.py submit                      submit the draft for Modrinth's review (makes it public once approved)
 
 Needs MODRINTH_TOKEN (scopes: Create projects, Write projects, Create versions). Standard library only.
@@ -18,6 +19,7 @@ import uuid
 from pathlib import Path
 
 API = "https://api.modrinth.com/v2"
+API3 = "https://api.modrinth.com/v3"  # newer fields, e.g. a version's environment
 ROOT = Path(__file__).resolve().parent.parent
 HERE = ROOT / "modrinth"
 SLUG = "speech-to-chat"
@@ -26,7 +28,7 @@ UA = "splice11/speech-to-chat (GitHub Actions publisher)"
 PROJECT = {
     "slug": SLUG,
     "title": "Speech to Chat",
-    "description": "Push-to-talk speech-to-text for chat. Runs locally with whisper.cpp.",
+    "description": "Hold a key, talk, and your words are typed into chat. Live preview, runs locally on any GPU or CPU.",
     "categories": ["social", "utility"],
     "client_side": "required",
     "server_side": "unsupported",
@@ -48,8 +50,8 @@ def token():
     return t
 
 
-def call(method, path, body=None, content_type=None, ok=(200, 201, 204)):
-    req = urllib.request.Request(API + path, data=body, method=method)
+def call(method, path, body=None, content_type=None, ok=(200, 201, 204), base=API):
+    req = urllib.request.Request(base + path, data=body, method=method)
     req.add_header("Authorization", token())
     req.add_header("User-Agent", UA)
     if content_type:
@@ -146,6 +148,20 @@ def cmd_version(jar, version):
     ])
     _, v = call("POST", "/version", payload, ctype)
     print(f"Uploaded version {v['version_number']} ({v['id']})")
+    set_environment(v["id"])
+
+
+def set_environment(version_id):
+    """Client-side only. v2 uploads don't carry this field; Modrinth requires it before review."""
+    call("PATCH", f"/version/{version_id}", json.dumps({"environment": "client_only"}).encode(),
+         "application/json", base=API3)
+    print(f"Version {version_id}: environment = client_only")
+
+
+def cmd_env():
+    p = project() or sys.exit("no project yet, run draft first")
+    for vid in p["versions"]:
+        set_environment(vid)
 
 
 def cmd_submit():
@@ -161,4 +177,5 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if not args:
         sys.exit(__doc__)
-    {"draft": cmd_draft, "gallery": cmd_gallery, "version": cmd_version, "submit": cmd_submit}[args[0]](*args[1:])
+    {"draft": cmd_draft, "gallery": cmd_gallery, "version": cmd_version, "env": cmd_env,
+     "submit": cmd_submit}[args[0]](*args[1:])
