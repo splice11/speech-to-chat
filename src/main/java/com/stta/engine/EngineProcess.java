@@ -122,10 +122,13 @@ public class EngineProcess {
 			stdin.close();
 		} catch (IOException ignored) {
 		}
-		process.destroy();
 		try {
-			if (!process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
-				process.destroyForcibly();
+			// closing stdin makes the engine exit by itself; give it a moment to finish its log
+			if (!process.waitFor(1, java.util.concurrent.TimeUnit.SECONDS)) {
+				process.destroy();
+				if (!process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
+					process.destroyForcibly();
+				}
 			}
 		} catch (InterruptedException e) {
 			process.destroyForcibly();

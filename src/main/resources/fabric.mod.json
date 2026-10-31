@@ -3,7 +3,7 @@
   "id": "speech-to-chat",
   "version": "${version}",
   "name": "Speech to Chat",
-  "description": "Hold a key, talk, and your words are typed into chat. Live preview above the hotbar. Speech is recognised on your own PC by a bundled whisper.cpp engine (Vulkan, Metal or CPU); nothing is uploaded.",
+  "description": "Push-to-talk speech-to-text for chat, with a live preview. Runs locally with whisper.cpp (Vulkan, Metal or CPU).",
   "authors": [
     "splice11"
   ],

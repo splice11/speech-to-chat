@@ -26,7 +26,7 @@ UA = "splice11/speech-to-chat (GitHub Actions publisher)"
 PROJECT = {
     "slug": SLUG,
     "title": "Speech to Chat",
-    "description": "Hold a key, talk, and your words are typed into chat. Live preview, runs locally on any GPU or CPU.",
+    "description": "Push-to-talk speech-to-text for chat. Runs locally with whisper.cpp.",
     "categories": ["social", "utility"],
     "client_side": "required",
     "server_side": "unsupported",
