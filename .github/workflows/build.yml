@@ -74,6 +74,7 @@ jobs:
         shell: pwsh
         run: |
           Invoke-WebRequest https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin -OutFile base.bin
+          python engine/test/smoke_test.py engine/out/windows-x64/cpu/whisper-server.exe base.bin --no-watchdog
           python engine/test/smoke_test.py engine/out/windows-x64/cpu/whisper-server.exe base.bin
           if ($LASTEXITCODE -ne 0) { exit 1 }
           python engine/test/smoke_test.py engine/out/windows-x64/vulkan/whisper-server.exe base.bin --gpu --allow-start-failure

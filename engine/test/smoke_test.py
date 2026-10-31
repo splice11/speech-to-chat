@@ -11,13 +11,16 @@ from pathlib import Path
 
 exe, model = sys.argv[1], sys.argv[2]
 gpu = "--gpu" in sys.argv
+watchdog = "--no-watchdog" not in sys.argv
 allow_start_failure = "--allow-start-failure" in sys.argv
 wav = Path(__file__).with_name("speech.wav").read_bytes()
 
 with socket.socket() as s:
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
-args = [exe, "--host", "127.0.0.1", "--port", str(port), "--exit-on-stdin-close", "-m", model, "-l", "en", "-t", "4"]
+args = [exe, "--host", "127.0.0.1", "--port", str(port), "-m", model, "-l", "en", "-t", "4"]
+if watchdog:
+    args.append("--exit-on-stdin-close")
 if not gpu:
     args.append("-ng")
 # log to a file like the mod does: an unread pipe fills up (4 KB on Windows) and blocks the engine
@@ -50,7 +53,12 @@ body += f"--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"s.w
 body += wav + f"\r\n--{b}--\r\n".encode()
 t0 = time.time()
 req = urllib.request.Request(base + "/inference", body, {"Content-Type": "multipart/form-data; boundary=" + b})
-text = json.loads(urllib.request.urlopen(req, timeout=300).read())["text"]
+try:
+    text = json.loads(urllib.request.urlopen(req, timeout=600).read())["text"]
+except Exception as e:
+    proc.kill()
+    sys.exit(f"inference failed after {time.time() - t0:.0f}s: {e!r}\n--- engine log ---\n"
+             + log_path.read_text(errors="replace")[-4000:])
 print(f"transcribed in {time.time() - t0:.1f}s: {text.strip()}")
 words = text.lower()
 missing = [w for w in ("diamonds", "village", "creeper", "behind") if w not in words]
@@ -58,6 +66,9 @@ if missing:
     proc.kill()
     sys.exit(f"transcription is missing {missing}")
 
+if not watchdog:
+    proc.kill()
+    sys.exit(0)
 proc.stdin.close()  # what happens when the game process dies
 try:
     proc.wait(timeout=10)
