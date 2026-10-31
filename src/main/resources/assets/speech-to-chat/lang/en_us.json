@@ -24,7 +24,7 @@
   "stta.setup.later": "Later",
   "stta.setup.downloading": "Downloading %s…",
   "stta.setup.starting": "Starting the speech engine…",
-  "stta.setup.ready": "Ready! Running on %s. In a world, hold %s and talk.",
+  "stta.setup.ready": "Ready! Running on %s; a 5 s sentence takes %s. In a world, hold %s and talk.",
   "stta.setup.cancelled": "Cancelled.",
   "stta.setup.failed": "Setup failed: %s",
   "config.stta.title": "Speech to Chat",
@@ -64,5 +64,12 @@
   "stta.quality.accurate.desc": "large-v3-turbo: the most accurate, any language. Needs a graphics card (NVIDIA, AMD, Intel Arc or Apple Silicon).",
   "stta.quality.balanced.desc": "small: good accuracy, fine on most CPUs and integrated graphics.",
   "stta.quality.light.desc": "base: fastest and least accurate, for older or slow PCs.",
-  "stta.setup.download_size": "Downloads %s"
+  "stta.setup.download_size": "Downloads %s",
+  "stta.setup.checking": "Checking how fast speech recognition runs on this PC…",
+  "stta.setup.still_slow": "This is slower than ideal; messages will take a while to appear.",
+  "stta.setup.ready_slow": "Ready, but this PC is slow for speech recognition even with the Light model: expect several seconds per message.",
+  "stta.setup.switched": "%s on the %s was too slow here, so it switched to %s on the %s.",
+  "stta.setup.on_gpu": "graphics card",
+  "stta.setup.on_cpu": "CPU",
+  "msg.stta.slow": "[Speech to Chat] That message took %s s to recognise. Open Mod Menu → Speech to Chat → \"Model, microphone & graphics card…\" to let it pick a faster setup for this PC."
 }

@@ -195,6 +195,17 @@ public final class EngineManager {
 		return m != null && m.isRunning() ? device : null;
 	}
 
+	public boolean mainOnGpu() {
+		EngineProcess m = main;
+		return m != null && m.isRunning() && m.onGpu();
+	}
+
+	/** URL of the running CPU preview engine, or null when previews share the main engine. */
+	public String previewEngineUrl() {
+		EngineProcess p = preview;
+		return p != null && p.isRunning() ? p.url() : null;
+	}
+
 	public String status() {
 		return status;
 	}

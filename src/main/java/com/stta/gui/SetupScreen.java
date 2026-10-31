@@ -6,6 +6,7 @@ import com.stta.audio.Recorder;
 import com.stta.config.STTAConfig;
 import com.stta.engine.EngineManager;
 import com.stta.engine.Platform;
+import com.stta.engine.SpeedCheck;
 import com.stta.model.Models;
 import com.stta.speech.VoiceInput;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ public class SetupScreen extends Screen {
 	private volatile String status = "";
 	private volatile float progress;
 	private volatile boolean cancelled;
+	private int statusY = 34;
 
 	public SetupScreen(@Nullable Screen parent) {
 		super(Component.translatable("stta.setup.title"));
@@ -58,9 +60,13 @@ public class SetupScreen extends Screen {
 		int y = 34;
 		MultiLineTextWidget intro = new MultiLineTextWidget(Component.translatable("stta.setup.intro"), font)
 			.setMaxWidth(w).setCentered(true);
-		intro.setPosition(cx - intro.getWidth() / 2, y);
-		addRenderableWidget(intro);
-		y += intro.getHeight() + 8;
+		if (status.isEmpty()) {
+			intro.setPosition(cx - intro.getWidth() / 2, y);
+			addRenderableWidget(intro);
+		}
+		// while working, the status (and progress bar) take the intro's place, clear of the buttons
+		statusY = y;
+		y += Math.max(intro.getHeight(), 50) + 8;
 
 		MultiLineTextWidget gpu = new MultiLineTextWidget(
 			Component.translatable("stta.setup.gpu", gpuName).withStyle(ChatFormatting.GRAY), font).setMaxWidth(w).setCentered(true);
@@ -116,7 +122,10 @@ public class SetupScreen extends Screen {
 		}
 	}
 
-	/** Downloads what's missing, then starts the engine once to prove it works on this machine. */
+	/**
+	 * Downloads what's missing, starts the engines, then times a real transcription. If this PC
+	 * is too slow for the chosen setup, switches to a lighter one (CPU, smaller model) and says so.
+	 */
 	private void start() {
 		STTAConfig config = STTAConfig.instance();
 		config.quality = quality;
@@ -127,34 +136,65 @@ public class SetupScreen extends Screen {
 		setState(State.DOWNLOADING);
 		Thread t = new Thread(() -> {
 			try {
-				boolean english = config.englishOnly();
-				List<Models.Model> needed = new ArrayList<>();
-				needed.add(Models.forQuality(quality, english));
-				if (useGpu && config.previewOnCpu) {
-					needed.add(Models.previewModel(english));
-				}
-				long total = needed.stream().filter(m -> !m.installed()).mapToLong(m -> m.size).sum();
-				long[] done = {0};
-				for (Models.Model m : needed.stream().distinct().toList()) {
-					if (m.installed()) {
-						continue;
+				String note = "";
+				Models.Quality firstQuality = config.quality;
+				Boolean firstGpu = null; // device of the first check, known once the engine runs
+				for (int round = 0; ; round++) {
+					download(config);
+					setState(State.STARTING);
+					status = Component.translatable("stta.setup.starting").getString();
+					EngineManager.get().restart();
+					config.setupDone = true;
+					STTAConfig.save();
+					EngineManager.get().previewUrl();
+
+					status = Component.translatable("stta.setup.checking").getString();
+					EngineManager engines = EngineManager.get();
+					long ms = SpeedCheck.time(engines.mainUrl());
+					SpeedCheck.log(config.quality + (engines.mainOnGpu() ? " on GPU" : " on CPU"), ms);
+					if (SpeedCheck.fastEnough(ms) || round == 2) {
+						String device = engines.mainDevice();
+						String speed = ms < 0 ? "> 6 s" : String.format(Locale.ROOT, "%.1f s", ms / 1000.0);
+						status = note + Component.translatable("stta.setup.ready", device == null ? "?" : device,
+							speed, VoiceInput.talkKey.getTranslatedKeyMessage()).getString();
+						if (!SpeedCheck.fastEnough(ms)) {
+							status += " " + Component.translatable("stta.setup.still_slow").getString();
+						}
+						break;
 					}
-					long before = done[0];
-					status = Component.translatable("stta.setup.downloading", m.file).getString();
-					Models.download(m, (have, size) -> {
-						done[0] = before + have;
-						progress = total == 0 ? 1 : (float) done[0] / total;
-					}, () -> cancelled);
+					// too slow: estimate every model on GPU and CPU from what we measured, take the best that fits
+					boolean wasGpu = engines.mainOnGpu();
+					if (firstGpu == null) {
+						firstGpu = wasGpu;
+					}
+					long gpuMs = wasGpu ? ms : Long.MIN_VALUE;
+					long cpuBaseMs;
+					if (wasGpu && engines.previewEngineUrl() != null) {
+						cpuBaseMs = SpeedCheck.time(engines.previewEngineUrl());
+						SpeedCheck.log("base on CPU", cpuBaseMs);
+					} else if (wasGpu) {
+						cpuBaseMs = -1; // no CPU measurement: stay on the GPU with a smaller model
+					} else {
+						cpuBaseMs = ms < 0 ? -1 : Math.round(ms / SpeedCheck.costOf(config.quality));
+					}
+					SpeedCheck.Choice choice = SpeedCheck.choose(config.quality, gpuMs, cpuBaseMs);
+					if (choice.quality() == config.quality && choice.gpu() == wasGpu) {
+						status = Component.translatable("stta.setup.ready_slow").getString();
+						break;
+					}
+					config.quality = choice.quality();
+					config.useGpu = choice.gpu();
+					STTAConfig.save();
+					quality = config.quality;
+					useGpu = config.useGpu;
+					note = Component.translatable("stta.setup.switched",
+						Component.translatable("stta.quality." + firstQuality.name().toLowerCase(Locale.ROOT)).getString(),
+						Component.translatable(firstGpu ? "stta.setup.on_gpu" : "stta.setup.on_cpu").getString(),
+						Component.translatable("stta.quality." + config.quality.name().toLowerCase(Locale.ROOT)).getString(),
+						Component.translatable(config.useGpu ? "stta.setup.on_gpu" : "stta.setup.on_cpu").getString()).getString() + " ";
+					STTAClient.LOGGER.info("Too slow, switching to {} ({})", config.quality, config.useGpu ? "GPU" : "CPU");
+					setState(State.DOWNLOADING);
 				}
-				setState(State.STARTING);
-				status = Component.translatable("stta.setup.starting").getString();
-				EngineManager.get().restart();
-				config.setupDone = true;
-				STTAConfig.save();
-				EngineManager.get().previewUrl();
-				String device = EngineManager.get().mainDevice();
-				status = Component.translatable("stta.setup.ready", device == null ? "?" : device,
-					VoiceInput.talkKey.getTranslatedKeyMessage()).getString();
 				setState(State.READY);
 			} catch (InterruptedException e) {
 				status = Component.translatable("stta.setup.cancelled").getString();
@@ -169,6 +209,30 @@ public class SetupScreen extends Screen {
 		t.start();
 	}
 
+	/** Downloads the models the current settings need, with one progress bar across all of them. */
+	private void download(STTAConfig config) throws java.io.IOException, InterruptedException {
+		boolean english = config.englishOnly();
+		List<Models.Model> needed = new ArrayList<>();
+		needed.add(Models.forQuality(config.quality, english));
+		if (config.useGpu && config.previewOnCpu) {
+			needed.add(Models.previewModel(english));
+		}
+		long total = needed.stream().filter(m -> !m.installed()).mapToLong(m -> m.size).sum();
+		long[] done = {0};
+		progress = 0;
+		for (Models.Model m : needed.stream().distinct().toList()) {
+			if (m.installed()) {
+				continue;
+			}
+			long before = done[0];
+			status = Component.translatable("stta.setup.downloading", m.file).getString();
+			Models.download(m, (have, size) -> {
+				done[0] = before + have;
+				progress = total == 0 ? 1 : (float) done[0] / total;
+			}, () -> cancelled);
+		}
+	}
+
 	private void setState(State s) {
 		state = s;
 		minecraft.execute(() -> rebuildWidgets());
@@ -178,20 +242,18 @@ public class SetupScreen extends Screen {
 	public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float a) {
 		super.extractRenderState(g, mouseX, mouseY, a);
 		g.centeredText(font, title, width / 2, 14, 0xFFFFFFFF);
-		int y = height - 46;
+		int y = statusY;
 		if (!status.isEmpty()) {
 			int color = state == State.FAILED ? 0xFFFF6060 : state == State.READY ? 0xFF80FF80 : 0xFFE0E0E0;
-			List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(status), 320);
-			int ly = y - (lines.size() - 1) * 10;
-			for (var line : lines) {
-				g.centeredText(font, line, width / 2, ly, color);
-				ly += 10;
+			for (var line : font.split(Component.literal(status), 300)) {
+				g.centeredText(font, line, width / 2, y, color);
+				y += 10;
 			}
 		}
-		if (state == State.DOWNLOADING) {
+		if (state == State.DOWNLOADING && progress > 0) {
 			int w = 300;
 			int x0 = (width - w) / 2;
-			int by = y + 14;
+			int by = y + 4;
 			g.fill(x0, by, x0 + w, by + 6, ARGB.color(160, 0, 0, 0));
 			g.fill(x0, by, x0 + Math.round(w * progress), by + 6, 0xFF55CC55);
 			g.centeredText(font, String.format(Locale.ROOT, "%d%%", Math.round(progress * 100)), width / 2, by + 9, 0xFFAAAAAA);
@@ -256,6 +318,9 @@ public class SetupScreen extends Screen {
 		}
 		if (g.contains("llvmpipe") || g.contains("softpipe") || g.contains("swiftshader") || g.contains("basic render")) {
 			return Models.Quality.LIGHT;
+		}
+		if (g.matches(".*\\bgt \\d{3,4}\\b.*") || g.matches(".*\\bmx\\s?\\d{3}.*") || g.contains("gt 1030")) {
+			return Models.Quality.BALANCED;
 		}
 		if (g.contains("geforce") || g.contains("rtx") || g.contains("quadro") || g.contains("radeon rx")
 			|| g.contains("radeon pro") || g.contains(" arc") || g.matches(".*\\brx \\d{3,4}.*")) {

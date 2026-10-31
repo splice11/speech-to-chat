@@ -35,6 +35,15 @@ public class WhisperServer {
 	 * @param partial greedy and lenient (live preview); otherwise beam search with temperature fallback
 	 */
 	public String transcribe(float[] audio, String prompt, boolean partial) throws IOException, InterruptedException {
+		// Partials go to the small CPU preview engine (when the main one is on the GPU) so they
+		// don't compete with the game for the GPU. Getting the URL may wait for a model load.
+		String url = partial ? EngineManager.get().previewUrl() : EngineManager.get().mainUrl();
+		return transcribeAt(url, audio, prompt, partial, Duration.ofSeconds(partial ? 30 : 150));
+	}
+
+	/** Same request against a given engine, with a given time limit (used by the setup speed check). */
+	public String transcribeAt(String url, float[] audio, String prompt, boolean partial, Duration timeout)
+		throws IOException, InterruptedException {
 		STTAConfig config = STTAConfig.instance();
 		// whisper-server keeps request params globally, so always send every one
 		Map<String, String> fields = new LinkedHashMap<>();
@@ -79,11 +88,8 @@ public class WhisperServer {
 			java.nio.file.Files.write(d.resolve(stamp + ".wav"), wav(audio));
 			java.nio.file.Files.writeString(d.resolve(stamp + ".txt"), fields.toString());
 		}
-		// Partials go to the small CPU preview engine (when the main one is on the GPU) so they
-		// don't compete with the game for the GPU. Getting the URL may wait for a model load.
-		String url = partial ? EngineManager.get().previewUrl() : EngineManager.get().mainUrl();
 		HttpRequest req = HttpRequest.newBuilder(URI.create(url + "/inference"))
-			.timeout(Duration.ofSeconds(partial ? 30 : 150))
+			.timeout(timeout)
 			.header("Content-Type", "multipart/form-data; boundary=" + boundary)
 			.POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray()))
 			.build();

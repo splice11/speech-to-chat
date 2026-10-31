@@ -1,5 +1,5 @@
 diff --git a/examples/server/server.cpp b/examples/server/server.cpp
-index b745f4d7..0c2fa6e0 100644
+index b745f4d7..46759780 100644
 --- a/examples/server/server.cpp
 +++ b/examples/server/server.cpp
 @@ -78,6 +78,7 @@ struct whisper_params {
@@ -37,7 +37,17 @@ index b745f4d7..0c2fa6e0 100644
      if (req.has_file("max_len"))
      {
          params.max_len = std::stoi(req.get_file_value("max_len").content);
-@@ -651,6 +658,17 @@ int main(int argc, char ** argv) {
+@@ -646,11 +653,27 @@ int main(int argc, char ** argv) {
+ 
+     std::mutex whisper_mutex;
+ 
++    // STTA: the game reads our log from a file; Windows' CRT fully buffers redirected output,
++    // so without this nothing shows up until the engine exits.
++    setvbuf(stdout, nullptr, _IONBF, 0);
++    setvbuf(stderr, nullptr, _IONBF, 0);
++
+     if (whisper_params_parse(argc, argv, params, sparams) == false) {
+         whisper_print_usage(argc, argv, params, sparams);
          return 1;
      }
  
@@ -55,7 +65,7 @@ index b745f4d7..0c2fa6e0 100644
      if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1) {
          fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
          whisper_print_usage(argc, argv, params, sparams);
-@@ -957,6 +975,7 @@ int main(int argc, char ** argv) {
+@@ -957,6 +980,7 @@ int main(int argc, char ** argv) {
              wparams.no_speech_thold  = params.no_speech_thold;
              wparams.temperature_inc  = params.temperature_inc;
              wparams.entropy_thold    = params.entropy_thold;

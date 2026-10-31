@@ -117,7 +117,8 @@ public class SpeechHud implements HudElement {
 				}
 			}
 			case FINISHING -> {
-				String dots = ".".repeat(1 + (int) (age / 250 % 3));
+				// a slow PC can take a while: count the seconds so it doesn't look stuck
+				String dots = age < 2000 ? ".".repeat(1 + (int) (age / 250 % 3)) : " … " + age / 1000 + " s";
 				text.append(Component.literal(s.stable.isEmpty() ? dots : s.stable + " ").withStyle(ChatFormatting.WHITE));
 				if (!s.stable.isEmpty()) {
 					text.append(Component.literal(dots).withStyle(ChatFormatting.GRAY));

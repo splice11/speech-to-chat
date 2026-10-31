@@ -22,7 +22,9 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.resources.Identifier;
 
@@ -69,6 +71,7 @@ public class VoiceInput {
 	});
 
 	private volatile boolean busy;
+	private boolean warnedSlow;
 	private volatile long releasedAt;
 	private long startedAt;
 	private boolean wasDown;
@@ -201,7 +204,9 @@ public class VoiceInput {
 		hud.finishing();
 
 		float[] all = recorder.copy(0, recorder.length());
+		long t0 = System.currentTimeMillis();
 		String text = all.length >= MIN_SPEECH && loud(all) ? ChatText.trimLoops(ChatText.clean(server.transcribe(all, prompt(), false)), 4) : "";
+		warnIfSlow(System.currentTimeMillis() - t0, all.length * 1000L / SR);
 		if (text.isEmpty()) {
 			hud.blank();
 			return;
@@ -243,6 +248,24 @@ public class VoiceInput {
 	 */
 	private static String prompt() {
 		return STTAConfig.instance().prompt;
+	}
+
+	/**
+	 * Once per session, tell the player (in their own chat only) when recognition is far slower
+	 * than it should be, e.g. a weak GPU or an overloaded CPU, and where to fix it.
+	 */
+	private void warnIfSlow(long ms, long audioMs) {
+		if (warnedSlow || ms < Math.max(8000, 2 * audioMs)) {
+			return;
+		}
+		warnedSlow = true;
+		STTAClient.LOGGER.warn("Final transcription took {} ms for {} ms of speech", ms, audioMs);
+		Minecraft mc = Minecraft.getInstance();
+		mc.execute(() -> {
+			if (mc.player != null) {
+				mc.player.sendSystemMessage(Component.translatable("msg.stta.slow", ms / 1000).withStyle(ChatFormatting.GOLD));
+			}
+		});
 	}
 
 	/** A finished preview job's text; a failure there is reported like any other. */

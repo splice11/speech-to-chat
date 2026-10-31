@@ -26,6 +26,9 @@ public class SttaClientGameTest implements FabricClientGameTest {
 		double seconds = Double.parseDouble(System.getenv().getOrDefault("STTA_HOLD", "8"));
 		long shotMs = Long.parseLong(System.getenv().getOrDefault("STTA_SHOT_MS", "2000"));
 		System.setProperty("stta.debugWav", wav);
+		if (System.getenv("STTA_MAX_RTF") != null) {
+			System.setProperty("stta.debugMaxRtf", System.getenv("STTA_MAX_RTF"));
+		}
 		if (System.getenv("STTA_DUMP") != null) {
 			System.setProperty("stta.debugDumpDir", System.getenv("STTA_DUMP"));
 		}
