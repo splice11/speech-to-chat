@@ -1,0 +1,65 @@
+diff --git a/examples/server/server.cpp b/examples/server/server.cpp
+index b745f4d7..0c2fa6e0 100644
+--- a/examples/server/server.cpp
++++ b/examples/server/server.cpp
+@@ -78,6 +78,7 @@ struct whisper_params {
+     int32_t progress_step = 5;
+     int32_t max_context   = -1;
+     int32_t max_len       = 0;
++    int32_t max_tokens    = 0; // per segment, 0 = no limit (STTA: bounds runaway loops in live partials)
+     int32_t best_of       = 2;
+     int32_t beam_size     = -1;
+     int32_t audio_ctx     = 0;
+@@ -106,6 +107,7 @@ struct whisper_params {
+     bool flash_attn                = true;
+     int32_t gpu_device             = 0;
+     bool suppress_nst              = false;
++    bool exit_on_stdin_close       = false; // STTA: die with the parent (game) process
+     bool no_context                = true;
+     bool no_language_probabilities = false;
+     bool carry_initial_prompt      = false;
+@@ -244,6 +246,7 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params, serve
+         else if (arg == "-fa"    || arg == "--flash-attn")                { params.flash_attn                = true; }
+         else if (arg == "-nfa"   || arg == "--no-flash-attn")             { params.flash_attn                = false; }
+         else if (arg == "-sns"   || arg == "--suppress-nst")              { params.suppress_nst              = true; }
++        else if (                   arg == "--exit-on-stdin-close")         { params.exit_on_stdin_close       = true; }
+         else if (arg == "-nth"   || arg == "--no-speech-thold")           { params.no_speech_thold           = std::stof(argv[++i]); }
+         else if (arg == "-nlp"   || arg == "--no-language-probabilities") { params.no_language_probabilities = true; }
+ 
+@@ -495,6 +498,10 @@ void get_req_parameters(const Request & req, whisper_params & params)
+     {
+         params.max_context = std::stoi(req.get_file_value("max_context").content);
+     }
++    if (req.has_file("max_tokens"))
++    {
++        params.max_tokens = std::stoi(req.get_file_value("max_tokens").content);
++    }
+     if (req.has_file("max_len"))
+     {
+         params.max_len = std::stoi(req.get_file_value("max_len").content);
+@@ -651,6 +658,17 @@ int main(int argc, char ** argv) {
+         return 1;
+     }
+ 
++    // The parent keeps our stdin open; when it exits or crashes the pipe closes and we go too,
++    // so a killed game never leaves a model sitting in VRAM.
++    if (params.exit_on_stdin_close) {
++        std::thread([]() {
++            char buf[64];
++            while (fread(buf, 1, sizeof(buf), stdin) > 0) {}
++            fprintf(stderr, "stdin closed, exiting\n");
++            std::_Exit(0);
++        }).detach();
++    }
++
+     if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1) {
+         fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
+         whisper_print_usage(argc, argv, params, sparams);
+@@ -957,6 +975,7 @@ int main(int argc, char ** argv) {
+             wparams.no_speech_thold  = params.no_speech_thold;
+             wparams.temperature_inc  = params.temperature_inc;
+             wparams.entropy_thold    = params.entropy_thold;
++            wparams.max_tokens       = params.max_tokens;
+             wparams.logprob_thold    = params.logprob_thold;
+ 
+             wparams.no_timestamps    = params.no_timestamps;

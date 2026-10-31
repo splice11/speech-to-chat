@@ -1,0 +1,12 @@
+.gradle/
+build/
+run/
+engine/build/
+engine/out/
+*.class
+.idea/
+engine/.cache/
+engine/container-build.log
+# personal ROCm systemd setup of the maintainer's own PC, not part of the mod
+server/
+engine/container-build.log

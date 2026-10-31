@@ -1,0 +1,53 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+repositories {
+	exclusiveContent {
+		forRepository { maven { name = "Modrinth"; url = "https://api.modrinth.com/maven" } }
+		filter { includeGroup "maven.modrinth" }
+	}
+}
+
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "stta-test"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Config screen only; the mod runs without them.
+	compileOnly "maven.modrinth:yacl:${project.yacl_version}"
+	compileOnly "maven.modrinth:modmenu:${project.modmenu_version}"
+}
+
+processResources {
+	// bundled speech engines, built by engine/build*.sh locally or by CI (one folder per platform)
+	from("engine/out") { into "natives" }
+	def version = project.version
+	inputs.property "version", version
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+	from("LICENSE") { rename { "${it}_speech-to-text-accessibility" } }
+}

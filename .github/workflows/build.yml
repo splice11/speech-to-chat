@@ -1,0 +1,136 @@
+# Builds the speech engine (whisper.cpp's whisper-server + our patch) for every platform,
+# then the mod jar with all engines inside. Tags v* also publish a GitHub release.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  VULKAN_SDK_VERSION: 1.4.363.0
+
+jobs:
+  engine-linux:
+    # Ubuntu 22.04 keeps the glibc requirement at 2.34/2.35 for older distros and Flatpak runtimes
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: true }
+      - name: Tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq build-essential cmake ninja-build
+      - name: Vulkan SDK (glslc + current headers; 22.04's are too old)
+        run: |
+          curl -fsSL -o sdk.tar.xz "https://sdk.lunarg.com/sdk/download/$VULKAN_SDK_VERSION/linux/vulkansdk-linux-x86_64-$VULKAN_SDK_VERSION.tar.xz"
+          mkdir -p "$RUNNER_TEMP/vulkan" && tar -xJf sdk.tar.xz -C "$RUNNER_TEMP/vulkan"
+          echo "VULKAN_SDK=$RUNNER_TEMP/vulkan/$VULKAN_SDK_VERSION/x86_64" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/vulkan/$VULKAN_SDK_VERSION/x86_64/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: |
+          engine/build.sh cpu
+          engine/build.sh vulkan -DVulkan_LIBRARY=$VULKAN_SDK/lib/VulkanLoader/lib/libvulkan.so -DVulkan_INCLUDE_DIR=$VULKAN_SDK/include
+      - name: Smoke test (starts and answers /health with a tiny model)
+        run: |
+          curl -fsSL -o tiny.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en-q5_1.bin
+          engine/out/linux-x64/cpu/whisper-server --port 8199 -m tiny.bin -ng & pid=$!
+          for i in $(seq 60); do curl -sf localhost:8199/health && break; sleep 0.5; done
+          curl -sf localhost:8199/health; kill $pid
+      - uses: actions/upload-artifact@v4
+        with: { name: engine-linux-x64, path: engine/out }
+
+  engine-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: true }
+      - name: Vulkan SDK
+        shell: pwsh
+        run: |
+          $v = $env:VULKAN_SDK_VERSION
+          Invoke-WebRequest "https://sdk.lunarg.com/sdk/download/$v/windows/vulkansdk-windows-X64-$v.exe" -OutFile sdk.exe
+          Start-Process -Wait -FilePath .\sdk.exe -ArgumentList "--root","C:\VulkanSDK\$v","--accept-licenses","--default-answer","--confirm-command","install"
+          "VULKAN_SDK=C:\VulkanSDK\$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "C:\VulkanSDK\$v\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Build
+        shell: pwsh
+        run: |
+          git -C engine/whisper.cpp apply ../patches/0001-server-stta.patch
+          # static MSVC runtime: no "install the VC++ redistributable" for players
+          $common = @("-DCMAKE_BUILD_TYPE=Release","-DBUILD_SHARED_LIBS=OFF","-DGGML_NATIVE=OFF","-DGGML_OPENMP=OFF",
+                      "-DWHISPER_SDL2=OFF","-DWHISPER_BUILD_TESTS=OFF","-DWHISPER_BUILD_EXAMPLES=ON",
+                      "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded")
+          foreach ($variant in @("cpu","vulkan")) {
+            $extra = if ($variant -eq "vulkan") { @("-DGGML_VULKAN=ON") } else { @() }
+            cmake -S engine/whisper.cpp -B "engine/build/$variant" -A x64 @common @extra
+            cmake --build "engine/build/$variant" --config Release --target whisper-server -j 4
+            New-Item -ItemType Directory -Force "engine/out/windows-x64/$variant" | Out-Null
+            Copy-Item "engine/build/$variant/bin/Release/whisper-server.exe" "engine/out/windows-x64/$variant/"
+          }
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en-q5_1.bin -OutFile tiny.bin
+          $p = Start-Process -PassThru -FilePath engine/out/windows-x64/cpu/whisper-server.exe -ArgumentList "--port","8199","-m","tiny.bin","-ng"
+          for ($i = 0; $i -lt 60; $i++) { try { Invoke-WebRequest -UseBasicParsing http://localhost:8199/health | Out-Null; break } catch { Start-Sleep -Milliseconds 500 } }
+          Invoke-WebRequest -UseBasicParsing http://localhost:8199/health
+          Stop-Process $p
+      - uses: actions/upload-artifact@v4
+        with: { name: engine-windows-x64, path: engine/out }
+
+  engine-macos:
+    runs-on: macos-14
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: true }
+      - name: Tools
+        run: brew install ninja
+      - name: Build (Metal, shaders embedded)
+        run: |
+          engine/build.sh metal -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+          # build.sh names the folder after the runner (arm64); fix it up for the cross-built x86_64 one
+          if [ "${{ matrix.arch }}" = x86_64 ]; then mv engine/out/macos-arm64 engine/out/macos-x64; fi
+          file engine/out/*/metal/whisper-server
+      - name: Smoke test
+        if: matrix.arch == 'arm64'
+        run: |
+          curl -fsSL -o tiny.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en-q5_1.bin
+          engine/out/macos-arm64/metal/whisper-server --port 8199 -m tiny.bin & pid=$!
+          for i in $(seq 60); do curl -sf localhost:8199/health && break; sleep 0.5; done
+          curl -sf localhost:8199/health; kill $pid
+      - uses: actions/upload-artifact@v4
+        with: { name: "engine-macos-${{ matrix.arch }}", path: engine/out }
+
+  mod:
+    needs: [engine-linux, engine-windows, engine-macos]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { pattern: "engine-*", path: engine/out, merge-multiple: true }
+      - run: find engine/out -type f -exec ls -l {} \;
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "25" }
+      - name: Build jar
+        # org.gradle.java.home in gradle.properties points at a local JDK; use the runner's
+        run: |
+          sed -i '/^org.gradle.java.home=/d' gradle.properties
+          chmod +x gradlew && ./gradlew build --console=plain
+      - name: Check every platform is inside
+        run: |
+          for e in natives/linux-x64/vulkan/whisper-server natives/linux-x64/cpu/whisper-server \
+                   natives/windows-x64/vulkan/whisper-server.exe natives/windows-x64/cpu/whisper-server.exe \
+                   natives/macos-arm64/metal/whisper-server natives/macos-x64/metal/whisper-server; do
+            unzip -l build/libs/*.jar | grep -q "$e" || { echo "missing $e"; exit 1; }
+          done
+          ls -l build/libs
+      - uses: actions/upload-artifact@v4
+        with: { name: mod-jar, path: build/libs/*.jar }
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with: { files: build/libs/*.jar }

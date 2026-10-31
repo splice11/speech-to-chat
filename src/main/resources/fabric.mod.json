@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "speech-to-text-accessibility",
+  "version": "${version}",
+  "name": "Speech To Text Accessibility",
+  "description": "Hold a key, talk, and your words are typed into chat. Live preview above the hotbar. Speech is recognised on your own PC by a bundled whisper.cpp engine (Vulkan, Metal or CPU); nothing is uploaded.",
+  "authors": [
+    "splice11"
+  ],
+  "contributors": [
+    "Lunaposs (original Speech To Text Accessibility mod)",
+    "Orion (original Speech To Text Accessibility mod)"
+  ],
+  "license": "GPL-3.0-only",
+  "icon": "assets/speech-to-text-accessibility/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.stta.STTAClient"
+    ],
+    "modmenu": [
+      "com.stta.config.ModMenuIntegration"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "~26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  },
+  "recommends": {
+    "modmenu": "*",
+    "yet_another_config_lib_v3": "*"
+  }
+}

@@ -1,0 +1,11 @@
+{
+	"schemaVersion": 1,
+	"id": "stta-test",
+	"version": "1.0.0",
+	"name": "STTA in-game test",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-client-gametest": ["com.stta.gametest.SttaClientGameTest"]
+	},
+	"depends": { "speech-to-text-accessibility": "*" }
+}
