@@ -62,7 +62,9 @@ jobs:
                       "-DWHISPER_SDL2=OFF","-DWHISPER_BUILD_TESTS=OFF","-DWHISPER_BUILD_EXAMPLES=ON",
                       "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded")
           foreach ($variant in @("cpu","vulkan")) {
-            $extra = if ($variant -eq "vulkan") { @("-DGGML_VULKAN=ON") } else { @() }
+            # build the list explicitly: an if-expression unwraps a one-item array into a string
+            $extra = @()
+            if ($variant -eq "vulkan") { $extra += "-DGGML_VULKAN=ON" }
             cmake -S engine/whisper.cpp -B "engine/build/$variant" -A x64 @common @extra
             cmake --build "engine/build/$variant" --config Release --target whisper-server -j 4
             New-Item -ItemType Directory -Force "engine/out/windows-x64/$variant" | Out-Null
