@@ -72,7 +72,7 @@ public final class EngineManager {
 		}
 		try {
 			if (preview == null || !preview.isRunning()) {
-				preview = new EngineProcess("preview", install("cpu"), args(model, false, previewThreads()), logFile("preview"));
+				preview = new EngineProcess("preview", cpuExe(), args(model, false, previewThreads()), logFile("preview"));
 			}
 			return preview.ensureRunning(Duration.ofSeconds(30));
 		} catch (IOException e) {
@@ -100,13 +100,10 @@ public final class EngineManager {
 				STTAClient.LOGGER.warn("GPU speech engine failed, falling back to CPU", e);
 				gpu.stop();
 				gpuFailed = true;
-				if (Platform.isMac()) {
-					throw e; // the macOS build is Metal-only
-				}
 			}
 		}
 		status = "Loading speech model…";
-		EngineProcess cpu = new EngineProcess("main", install("cpu"), args(model, false, cpuThreads()), logFile("main"));
+		EngineProcess cpu = new EngineProcess("main", cpuExe(), args(model, false, cpuThreads()), logFile("main"));
 		cpu.ensureRunning(START_TIMEOUT);
 		status = "";
 		return cpu;
@@ -134,6 +131,11 @@ public final class EngineManager {
 	private static int previewThreads() {
 		int cores = Runtime.getRuntime().availableProcessors();
 		return Math.max(2, Math.min(4, cores / 4));
+	}
+
+	/** CPU engine: its own small build on Windows/Linux; on macOS the Metal build run with -ng. */
+	private static Path cpuExe() throws IOException {
+		return install(Platform.isMac() ? "metal" : "cpu");
 	}
 
 	/** Extracts the bundled engine binary for this platform (once per mod version). */

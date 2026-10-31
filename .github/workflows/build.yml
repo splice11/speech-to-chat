@@ -31,12 +31,12 @@ jobs:
         run: |
           engine/build.sh cpu
           engine/build.sh vulkan -DVulkan_LIBRARY=$VULKAN_SDK/lib/VulkanLoader/lib/libvulkan.so -DVulkan_INCLUDE_DIR=$VULKAN_SDK/include
-      - name: Smoke test (starts and answers /health with a tiny model)
+      - name: Smoke test (transcribe real speech, exit when the parent pipe closes)
         run: |
-          curl -fsSL -o tiny.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en-q5_1.bin
-          engine/out/linux-x64/cpu/whisper-server --port 8199 -m tiny.bin -ng & pid=$!
-          for i in $(seq 60); do curl -sf localhost:8199/health && break; sleep 0.5; done
-          curl -sf localhost:8199/health; kill $pid
+          curl -fsSL -o base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin
+          python3 engine/test/smoke_test.py engine/out/linux-x64/cpu/whisper-server base.bin
+          # no GPU on the runner: the Vulkan build must either work on CPU or fail to start cleanly
+          python3 engine/test/smoke_test.py engine/out/linux-x64/vulkan/whisper-server base.bin --gpu --allow-start-failure
       - uses: actions/upload-artifact@v4
         with: { name: engine-linux-x64, path: engine/out }
 
@@ -70,14 +70,14 @@ jobs:
             New-Item -ItemType Directory -Force "engine/out/windows-x64/$variant" | Out-Null
             Copy-Item "engine/build/$variant/bin/Release/whisper-server.exe" "engine/out/windows-x64/$variant/"
           }
-      - name: Smoke test
+      - name: Smoke test (transcribe real speech, exit when the parent pipe closes)
         shell: pwsh
         run: |
-          Invoke-WebRequest https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en-q5_1.bin -OutFile tiny.bin
-          $p = Start-Process -PassThru -FilePath engine/out/windows-x64/cpu/whisper-server.exe -ArgumentList "--port","8199","-m","tiny.bin","-ng"
-          for ($i = 0; $i -lt 60; $i++) { try { Invoke-WebRequest -UseBasicParsing http://localhost:8199/health | Out-Null; break } catch { Start-Sleep -Milliseconds 500 } }
-          Invoke-WebRequest -UseBasicParsing http://localhost:8199/health
-          Stop-Process $p
+          Invoke-WebRequest https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin -OutFile base.bin
+          python engine/test/smoke_test.py engine/out/windows-x64/cpu/whisper-server.exe base.bin
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          python engine/test/smoke_test.py engine/out/windows-x64/vulkan/whisper-server.exe base.bin --gpu --allow-start-failure
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - uses: actions/upload-artifact@v4
         with: { name: engine-windows-x64, path: engine/out }
 
@@ -97,13 +97,12 @@ jobs:
           # build.sh names the folder after the runner (arm64); fix it up for the cross-built x86_64 one
           if [ "${{ matrix.arch }}" = x86_64 ]; then mv engine/out/macos-arm64 engine/out/macos-x64; fi
           file engine/out/*/metal/whisper-server
-      - name: Smoke test
+      - name: Smoke test (transcribe real speech, exit when the parent pipe closes)
         if: matrix.arch == 'arm64'
         run: |
-          curl -fsSL -o tiny.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en-q5_1.bin
-          engine/out/macos-arm64/metal/whisper-server --port 8199 -m tiny.bin & pid=$!
-          for i in $(seq 60); do curl -sf localhost:8199/health && break; sleep 0.5; done
-          curl -sf localhost:8199/health; kill $pid
+          curl -fsSL -o base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin
+          python3 engine/test/smoke_test.py engine/out/macos-arm64/metal/whisper-server base.bin --gpu
+          python3 engine/test/smoke_test.py engine/out/macos-arm64/metal/whisper-server base.bin
       - uses: actions/upload-artifact@v4
         with: { name: "engine-macos-${{ matrix.arch }}", path: engine/out }
 
