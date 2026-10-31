@@ -89,7 +89,7 @@ public final class EngineManager {
 			throw new NotSetUpException();
 		}
 		if (config.useGpu && !gpuFailed) {
-			EngineProcess gpu = new EngineProcess("main", install(Platform.gpuVariant()), args(model, true, 4), logFile("main"));
+			EngineProcess gpu = new EngineProcess("main", install(Platform.gpuVariant()), args(model, true, gpuThreads()), logFile("main"));
 			try {
 				status = "Loading speech model…";
 				gpu.ensureRunning(START_TIMEOUT);
@@ -123,14 +123,24 @@ public final class EngineManager {
 		return a;
 	}
 
+	// ggml's thread pool busy-waits between steps: more engine threads than free cores makes them
+	// starve each other (4 threads on a 2-core Windows machine never finished a 1 s job). Leave
+	// half the cores to the game and never ask for more than exist.
+	private static int cores() {
+		return Math.max(1, Runtime.getRuntime().availableProcessors());
+	}
+
 	private static int cpuThreads() {
-		int cores = Runtime.getRuntime().availableProcessors();
-		return Math.max(2, Math.min(8, cores / 2));
+		return Math.max(1, Math.min(8, cores() / 2));
+	}
+
+	/** With the GPU doing the work, the CPU threads only feed it. */
+	private static int gpuThreads() {
+		return Math.max(1, Math.min(4, cores() / 2));
 	}
 
 	private static int previewThreads() {
-		int cores = Runtime.getRuntime().availableProcessors();
-		return Math.max(2, Math.min(4, cores / 4));
+		return Math.max(1, Math.min(4, cores() / 4));
 	}
 
 	/** CPU engine: its own small build on Windows/Linux; on macOS the Metal build run with -ng. */

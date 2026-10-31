@@ -6,7 +6,7 @@ and requires the engine to exit by itself.
 
   smoke_test.py <whisper-server> <model.bin> [--gpu] [--allow-start-failure]
 """
-import json, socket, subprocess, sys, tempfile, time, urllib.request, uuid
+import json, os, socket, subprocess, sys, tempfile, time, urllib.request, uuid
 from pathlib import Path
 
 exe, model = sys.argv[1], sys.argv[2]
@@ -18,7 +18,7 @@ wav = Path(__file__).with_name("speech.wav").read_bytes()
 with socket.socket() as s:
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
-args = [exe, "--host", "127.0.0.1", "--port", str(port), "-m", model, "-l", "en", "-t", "4"]
+args = [exe, "--host", "127.0.0.1", "--port", str(port), "-m", model, "-l", "en", "-t", str(max(1, min(4, (os.cpu_count() or 2) // 2)))]
 if watchdog:
     args.append("--exit-on-stdin-close")
 if not gpu:
