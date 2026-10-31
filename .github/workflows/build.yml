@@ -83,7 +83,7 @@ jobs:
         with: { name: engine-windows-x64, path: engine/out }
 
   engine-macos:
-    runs-on: macos-14
+    runs-on: macos-15
     strategy:
       matrix:
         arch: [arm64, x86_64]
