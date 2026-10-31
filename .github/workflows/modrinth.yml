@@ -6,16 +6,27 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "draft = create/update page (private), gallery = upload screenshots, submit = send for review (goes public once approved)"
+        description: "draft = create/update page (private), gallery = upload screenshots, version = upload the jar of a GitHub release, submit = send for review (goes public once approved)"
         type: choice
-        options: [draft, gallery, submit]
+        options: [draft, gallery, version, submit]
         default: draft
+      tag:
+        description: "release tag, for action=version (e.g. v1.0.0+26.3)"
+        required: false
 
 jobs:
   modrinth:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - run: python3 modrinth/modrinth.py ${{ inputs.action }}
+      - if: inputs.action != 'version'
+        run: python3 modrinth/modrinth.py ${{ inputs.action }}
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      - if: inputs.action == 'version'
+        run: |
+          gh release download "${{ inputs.tag }}" --pattern '*.jar' --dir release
+          python3 modrinth/modrinth.py version release/*.jar "${{ inputs.tag }}"
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}

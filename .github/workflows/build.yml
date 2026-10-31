@@ -110,6 +110,8 @@ jobs:
   mod:
     needs: [engine-linux, engine-windows, engine-macos]
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write  # create the GitHub release on tags
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
