@@ -143,7 +143,7 @@ public final class EngineManager {
 			throw new EngineProcess.EngineException("No speech engine is bundled for "
 				+ System.getProperty("os.name") + " " + System.getProperty("os.arch"));
 		}
-		String version = FabricLoader.getInstance().getModContainer("speech-to-text-accessibility")
+		String version = FabricLoader.getInstance().getModContainer("speech-to-chat")
 			.map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("dev");
 		Path target = STTAClient.dataDir().resolve("engine").resolve(version).resolve(platform).resolve(variant).resolve(Platform.exeName());
 		if (Files.exists(target)) {

@@ -125,7 +125,7 @@ public final class Models {
 			.build();
 		if (have < model.size) {
 			HttpRequest.Builder req = HttpRequest.newBuilder(URI.create(BASE_URL + model.file))
-				.header("User-Agent", "speech-to-text-accessibility-mod");
+				.header("User-Agent", "speech-to-chat-mod");
 			if (have > 0) {
 				req.header("Range", "bytes=" + have + "-");
 			}

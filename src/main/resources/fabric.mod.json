@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "speech-to-text-accessibility",
+  "id": "speech-to-chat",
   "version": "${version}",
-  "name": "Speech To Text Accessibility",
+  "name": "Speech to Chat",
   "description": "Hold a key, talk, and your words are typed into chat. Live preview above the hotbar. Speech is recognised on your own PC by a bundled whisper.cpp engine (Vulkan, Metal or CPU); nothing is uploaded.",
   "authors": [
     "splice11"
@@ -12,7 +12,7 @@
     "Orion (original Speech To Text Accessibility mod)"
   ],
   "license": "GPL-3.0-only",
-  "icon": "assets/speech-to-text-accessibility/icon.png",
+  "icon": "assets/speech-to-chat/icon.png",
   "environment": "client",
   "entrypoints": {
     "client": [
@@ -31,5 +31,10 @@
   "recommends": {
     "modmenu": "*",
     "yet_another_config_lib_v3": "*"
+  },
+  "contact": {
+    "homepage": "https://modrinth.com/mod/speech-to-chat",
+    "sources": "https://github.com/splice11/speech-to-chat",
+    "issues": "https://github.com/splice11/speech-to-chat/issues"
   }
 }

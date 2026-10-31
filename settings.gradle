@@ -9,4 +9,4 @@ pluginManagement {
 	}
 }
 
-rootProject.name = 'stta'
+rootProject.name = 'speech-to-chat'

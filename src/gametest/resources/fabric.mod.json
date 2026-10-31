@@ -7,5 +7,5 @@
 	"entrypoints": {
 		"fabric-client-gametest": ["com.stta.gametest.SttaClientGameTest"]
 	},
-	"depends": { "speech-to-text-accessibility": "*" }
+	"depends": { "speech-to-chat": "*" }
 }

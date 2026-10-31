@@ -12,7 +12,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 
 public class STTAConfig {
-	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("stta.json");
+	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("speech-to-chat.json");
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static STTAConfig instance;
 

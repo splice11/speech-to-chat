@@ -18,12 +18,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class STTAClient implements ClientModInitializer {
-	public static final Logger LOGGER = LoggerFactory.getLogger("speech-to-text-accessibility");
+	public static final Logger LOGGER = LoggerFactory.getLogger("speech-to-chat");
 	private static boolean setupOffered;
 
 	/** Models, engine binaries and engine logs live here, inside the game directory. */
 	public static Path dataDir() {
-		return FabricLoader.getInstance().getGameDir().resolve("speech-to-text");
+		return FabricLoader.getInstance().getGameDir().resolve("speech-to-chat");
 	}
 
 	@Override
@@ -44,6 +44,6 @@ public class STTAClient implements ClientModInitializer {
 				client.execute(() -> client.gui.setScreen(new SetupScreen(screen)));
 			}
 		});
-		LOGGER.info("Speech To Text Accessibility ready");
+		LOGGER.info("Speech to Chat ready");
 	}
 }

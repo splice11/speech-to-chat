@@ -1,4 +1,4 @@
-# Speech To Text Accessibility (26.3 fork)
+# Speech to Chat
 
 Hold a key, talk, and your words are typed into Minecraft chat.
 
@@ -26,7 +26,7 @@ Hold a key, talk, and your words are typed into Minecraft chat.
 | Balanced (small) | 190 MB | most CPUs, integrated graphics |
 | Light (base) | 60 MB | old or slow PCs |
 
-Files live in `<game dir>/speech-to-text/` (models, the extracted engine, engine logs).
+Files live in `<game dir>/speech-to-chat/` (models, the extracted engine, engine logs).
 
 ### macOS
 The first time you talk, macOS asks whether your launcher may use the microphone; allow it.

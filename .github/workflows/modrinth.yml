@@ -1,0 +1,21 @@
+# Modrinth project page: create/update the draft, upload screenshots, or submit for review.
+# Versions are uploaded by build.yml when a v* tag is pushed.
+name: modrinth
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "draft = create/update page (private), gallery = upload screenshots, submit = send for review (goes public once approved)"
+        type: choice
+        options: [draft, gallery, submit]
+        default: draft
+
+jobs:
+  modrinth:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 modrinth/modrinth.py ${{ inputs.action }}
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
